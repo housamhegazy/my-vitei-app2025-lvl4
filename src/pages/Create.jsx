@@ -3,48 +3,58 @@ import {
   Alert,
   Box,
   Button,
-  FilledInput,
-  FormControl,
   InputAdornment,
-  InputLabel,
   TextField,
+  Typography,
 } from "@mui/material";
 import { useState } from "react";
-import { useForm } from "react-hook-form"
-
-// Removed TypeScript type alias since this is a JavaScript file
-
+import { useForm } from "react-hook-form";
 
 const Create = () => {
-  const [transaction, setTransaction] = useState("");
-  const [amount, setAmount] = useState("");
-  const [ErrorMsg, setErrorMsg] = useState(false);
-  const [TrsnErrorMsg, setTrsnErrorMsg] = useState(false);
-  const [alert, setAlert] = useState(false);
+  const [alertMsg, setAlertMsg] = useState(false);
 
-const {
+  // React Hook Form
+  const {
     register,
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm()
+  } = useForm();
 
-  const onsubmitfunc = async () => {
-    if (transaction && amount) {
-      await fetch("http://localhost:3000/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ transaction, amount }),
-      }); 
-      setTransaction("");
-      setAmount("");
-      setAlert(true);
-      setTimeout(() => {
-        setAlert(false);
-      }, 3000);
+  const onsubmitfunc = async ({ transaction, amount }) => {
+    //post data only if it not found in db
+    const res = await fetch("http://localhost:3000/transactions");
+    const data = await res.json();
+    const exists = data.find(
+      (item) => item.transaction === transaction && item.amount === amount
+    );
+
+    if (exists) {
+      alert("Transaction already exists");
+      return;
     }
+    await fetch("http://localhost:3000/transactions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        transaction,
+        amount,
+      }),
+    })
+      .then((res) => res.json())
+      .then(() => {
+        if (transaction && amount) {
+          setAlertMsg(true);
+          setTimeout(() => {
+            setAlertMsg(false);
+          }, 3000);
+        }
+      })
+      .then(() => {
+        // Clear form fields after submission
+      });
   };
 
   return (
@@ -62,55 +72,75 @@ const {
       }}
     >
       <TextField
-      required
-        error={TrsnErrorMsg}
-        helperText={transaction === "" ? "Transaction is required" : ""}
-        {...register("transaction required", { required: true })} 
-        value={transaction}
-        onChange={(e) => {
-          setTransaction(e.target.value);
-        }}
+        {...register("transaction", {
+          required: { value: true, message: "Transaction is required" },
+          validate: {
+            value: (value) =>
+              /^[a-zA-Z0-9\s]+$/.test(value) ||
+              "Transaction must be a valid string",
+          },
+          maxLength: {
+            value: 20,
+            message: "Transaction must be at most 20 characters",
+          },
+        })}
         label="Transaction"
-        sx={{ m: 1, width: "25ch", color: "inherit", display: "block" }}
+        sx={{ m: 1, width: "300px", color: "inherit", display: "block" }}
         slotProps={{
+          inputLabel: { style: { color: "inherit" } },
+          formHelperText: {
+            sx: {
+              color: "error.main",
+              fontSize: "0.9rem",
+            },
+          },
           input: {
+            sx: { width: "100%" },
             startAdornment: (
               <InputAdornment position="start"> 👉</InputAdornment>
             ),
           },
         }}
         variant="filled"
+        // validation message for transaction
+        helperText={errors?.transaction?.message.toString() || ""}
       />
       <br />
+      {/* amount  */}
       <TextField
-        type="number"
-        {...register("amount required", { required: true })} 
-        helperText={amount === "" ? "Amount is required" : ""}
-        required
-        value={amount}
-        // type="number"
-        onChange={(e) => setAmount(e.target.value)}
+        {...register("amount", {
+          required: { value: true, message: "Amount is required" },
+          validate: {
+            value: (value) =>
+              (!isNaN(value) && value.trim() !== "") ||
+              "Amount must be a number and not empty",
+          },
+        })}
         label="Amount"
-        sx={{ m: 1, width: "25ch", color: "inherit", display: "block" }}
+        sx={{ m: 1, width: "300px", color: "inherit", display: "block" }}
         slotProps={{
+          inputLabel: { style: { color: "inherit" } },
+          formHelperText: {
+            sx: {
+              color: "error.main",
+              fontSize: "0.9rem",
+            },
+          },
           input: {
+            sx: { width: "100%" },
             startAdornment: (
               <InputAdornment position="start"> $</InputAdornment>
             ),
           },
         }}
         variant="filled"
+        helperText={errors?.amount?.message.toString() || ""}
       />
-      {errors.exampleRequired && <span>This field is required</span>}
-      <Button
-        type="submit"
-        
-        variant="contained"
-        sx={{ mt: 3 }}
-      >
+
+      <Button type="submit" variant="contained" sx={{ mt: 3 }}>
         Submit <ArrowForwardIos sx={{ ml: 1, fontSize: "medium" }} />
       </Button>
-      {alert && (
+      {alertMsg && (
         <Alert
           sx={{ position: "fixed", top: 16, right: 16 }}
           variant="filled"
